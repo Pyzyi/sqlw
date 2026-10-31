@@ -1,0 +1,10 @@
+.git
+.github
+.data
+node_modules
+tests
+tools
+docs
+*.md
+docker-compose*.yml
+e2e

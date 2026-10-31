@@ -1,0 +1,15 @@
+{
+  "name": "sqlwork",
+  "version": "1.0.0",
+  "description": "SQL-Lernwerkstatt – interaktive Klausurvorbereitung für Datenaufbereitung und SQL",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "PORT=8080 DATA_DIR=./.data node server/server.js",
+    "seed": "node tools/gen-seed.mjs",
+    "test": "node --test \"tests/**/*.test.mjs\""
+  }
+}

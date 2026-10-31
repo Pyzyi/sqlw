@@ -1,0 +1,11 @@
+{
+  "name": "SQL-Werkstatt",
+  "short_name": "SQL-Werkstatt",
+  "description": "Lernwerkstatt für Datenaufbereitung und SQL",
+  "lang": "de",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f2efe7",
+  "theme_color": "#1b1a16",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

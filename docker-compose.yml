@@ -1,0 +1,67 @@
+# SQL-Werkstatt – Lernwerkstatt für Datenaufbereitung und SQL.
+# ZimaOS: App Store → „+“ → „Benutzerdefinierte App installieren“ → „Importieren“ → diese Datei einfügen.
+# Andere Systeme: `docker compose up -d`, danach http://<server-ip>:8095 öffnen.
+name: sqlwork
+
+services:
+  sqlwork:
+    image: ghcr.io/pyzyi/sqlw:latest
+    container_name: sqlwork
+    restart: unless-stopped
+    ports:
+      - "8095:8080"
+    # Minimale Rechte: SQL-Werkstatt übernimmt damit beim Start den Datenordner
+    # und gibt danach alle Rechte ab (läuft als UID 1000 ohne Capabilities).
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      TZ: Europe/Berlin
+    volumes:
+      - /DATA/AppData/sqlwork:/data
+    x-casaos:
+      envs:
+        - container: TZ
+          description:
+            de_de: Zeitzone
+            en_us: Time zone
+      ports:
+        - container: "8080"
+          description:
+            de_de: Port der Weboberfläche
+            en_us: Web UI port
+      volumes:
+        - container: /data
+          description:
+            de_de: Lernstände aller Profile
+            en_us: Learning progress of all profiles
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: sqlwork
+  author: Pyzyi
+  developer: SQL-Werkstatt
+  category: Education
+  icon: https://raw.githubusercontent.com/Pyzyi/sqlw/main/public/icon-512.png
+  tagline:
+    de_de: SQL lernen, verstehen, beherrschen
+    en_us: Learn, understand and master SQL
+  description:
+    de_de: Interaktive Lernwerkstatt zur Klausurvorbereitung in Datenaufbereitung und SQL – Lerneinheiten, über 130 Aufgaben mit echter SQL-Engine, Wiederholung und Probeklausuren mit IHK-Notenschlüssel. Läuft komplett lokal.
+    en_us: Interactive workshop for exam preparation in data preparation and SQL – lessons, 130+ exercises with a real SQL engine, spaced repetition and mock exams. Runs fully local.
+  title:
+    de_de: SQL-Werkstatt
+    en_us: SQL Workshop
+  index: /
+  port_map: "8095"
+  scheme: http

@@ -1,0 +1,68 @@
+export default {
+  id: 'aggregat',
+  nr: '05',
+  bereich: 'SQL',
+  title: 'Auswerten',
+  short: 'COUNT, SUM, AVG, MIN, MAX – gruppieren mit GROUP BY, Gruppen filtern mit HAVING.',
+  lessons: [
+    {
+      title: 'Aggregatfunktionen',
+      blocks: [
+        { p: 'Aggregatfunktionen fassen **viele Zeilen zu einem Wert** zusammen:' },
+        { table: { head: ['Funktion', 'Ergebnis', 'NULL-Werte'], rows: [
+          ['`COUNT(*)`', 'Anzahl Zeilen', 'werden mitgezählt'],
+          ['`COUNT(spalte)`', 'Anzahl Werte in der Spalte', 'werden **nicht** gezählt'],
+          ['`COUNT(DISTINCT spalte)`', 'Anzahl **verschiedener** Werte', 'werden nicht gezählt'],
+          ['`SUM(spalte)`', 'Summe', 'ignoriert'],
+          ['`AVG(spalte)`', 'Durchschnitt', 'ignoriert (zählen nicht im Nenner!)'],
+          ['`MIN(spalte)` / `MAX(spalte)`', 'kleinster / größter Wert', 'ignoriert'],
+        ] } },
+        { code: 'SELECT COUNT(*) AS kunden,\n       COUNT(email) AS mit_email,\n       COUNT(DISTINCT ort) AS orte,\n       AVG(rabatt) AS schnitt_rabatt,\n       MAX(rabatt) AS max_rabatt\nFROM kunde;', run: true },
+      ],
+    },
+    {
+      title: 'GROUP BY',
+      blocks: [
+        { p: 'Mit `GROUP BY` wird **pro Gruppe** aggregiert, z. B. Anzahl Kunden **je Ort**:' },
+        { code: 'SELECT ort, COUNT(*) AS anzahl\nFROM kunde\nGROUP BY ort\nORDER BY anzahl DESC;', run: true },
+        { note: '**Die goldene Regel:** Jede Spalte im SELECT ist entweder **in GROUP BY** aufgeführt oder steckt **in einer Aggregatfunktion**. `SELECT ort, firma, COUNT(*) … GROUP BY ort` ist falsch – welche der Firmen im Ort sollte angezeigt werden?' },
+        { p: 'Man kann nach mehreren Spalten gruppieren – jede Kombination ist eine Gruppe:' },
+        { code: 'SELECT ort, kundentyp, COUNT(*) AS anzahl\nFROM kunde\nGROUP BY ort, kundentyp;', run: true },
+      ],
+    },
+    {
+      title: 'HAVING vs. WHERE',
+      blocks: [
+        { table: { head: ['', 'WHERE', 'HAVING'], rows: [
+          ['filtert', 'einzelne **Zeilen**', 'ganze **Gruppen**'],
+          ['Zeitpunkt', '**vor** dem Gruppieren', '**nach** dem Gruppieren'],
+          ['Aggregatfunktionen erlaubt?', 'nein', 'ja'],
+        ] } },
+        { p: 'Beispiel: Welche Orte haben **mehr als einen Gewerbekunden**? WHERE wählt die Gewerbekunden, HAVING die Gruppen:' },
+        { code: "SELECT ort, COUNT(*) AS anzahl\nFROM kunde\nWHERE kundentyp = 'Gewerbe'\nGROUP BY ort\nHAVING COUNT(*) > 1;", run: true },
+        { p: 'Komplette Reihenfolge: `SELECT … FROM … WHERE … GROUP BY … HAVING … ORDER BY … LIMIT`.' },
+      ],
+    },
+  ],
+  tasks: [
+    { id: 'a1', type: 'sql', level: 1, q: 'Wie viele **Kunden** gibt es insgesamt? Gib die Zahl als `anzahl` aus.', tables: ['kunde'], alias: ['anzahl'], solution: 'SELECT COUNT(*) AS anzahl FROM kunde;', hint: '`COUNT(*)`', explain: 'COUNT(*) zählt alle Zeilen.' },
+    { id: 'a2', type: 'sql', level: 1, q: 'Ermittle den **höchsten**, den **niedrigsten** und den **durchschnittlichen** Verkaufspreis aller Artikel (Aliase `max_preis`, `min_preis`, `schnitt`).', tables: ['artikel'], alias: ['max_preis', 'min_preis', 'schnitt'], solution: 'SELECT MAX(vk_preis) AS max_preis, MIN(vk_preis) AS min_preis, AVG(vk_preis) AS schnitt FROM artikel;', hint: 'Drei Aggregatfunktionen in einem SELECT.', explain: 'Mehrere Aggregate dürfen problemlos nebeneinander stehen.' },
+    { id: 'a3', type: 'sql', level: 1, q: 'Wie hoch ist die **Summe aller Monatsgehälter**? Alias `summe`.', tables: ['mitarbeiter'], alias: ['summe'], solution: 'SELECT SUM(gehalt) AS summe FROM mitarbeiter;', hint: '`SUM(gehalt)`', explain: 'SUM addiert alle Werte der Spalte.' },
+    { id: 'a4', type: 'sql', level: 2, q: 'Wie viele Kunden gibt es **je Kundentyp**? Gib `kundentyp` und `anzahl` aus.', tables: ['kunde'], alias: ['anzahl'], solution: 'SELECT kundentyp, COUNT(*) AS anzahl FROM kunde GROUP BY kundentyp;', hint: '`GROUP BY kundentyp`', explain: 'Pro Gruppe eine Ergebniszeile.' },
+    { id: 'a5', type: 'sql', level: 2, q: 'Wie viele Artikel gibt es **je Kategorie** (`kategorie_id`, `anzahl`)? Sortiere nach Anzahl absteigend, bei Gleichstand nach `kategorie_id` aufsteigend.', tables: ['artikel'], alias: ['anzahl'], solution: 'SELECT kategorie_id, COUNT(*) AS anzahl FROM artikel GROUP BY kategorie_id ORDER BY anzahl DESC, kategorie_id ASC;', hint: 'GROUP BY kategorie_id, dann ORDER BY mit zwei Kriterien.', explain: 'Kategorienamen kommen über einen JOIN dazu – siehe Modul 06.' },
+    { id: 'a6', type: 'sql', level: 2, q: 'Wie hoch ist das **Durchschnittsgehalt je Position**? Gib `position` und `schnitt` aus, auf **2 Nachkommastellen** gerundet.', tables: ['mitarbeiter'], alias: ['schnitt'], solution: 'SELECT position, ROUND(AVG(gehalt), 2) AS schnitt FROM mitarbeiter GROUP BY position;', hint: '`ROUND(AVG(gehalt), 2)` – Funktionen lassen sich verschachteln.', explain: 'Erst Durchschnitt pro Gruppe, dann runden.' },
+    { id: 'a7', type: 'sql', level: 2, q: 'Wie viele Bestellungen gibt es **je Status**? Gib `status` und `anzahl` aus.', tables: ['bestellung'], alias: ['anzahl'], solution: 'SELECT status, COUNT(*) AS anzahl FROM bestellung GROUP BY status;', hint: 'GROUP BY status', explain: 'Typische Frage für einen Statusbericht.' },
+    { id: 'a8', type: 'sql', level: 2, q: 'Welche Kunden (`kunde_id`) haben **mehr als 2 Bestellungen** aufgegeben? Gib `kunde_id` und `anzahl` aus.', tables: ['bestellung'], alias: ['anzahl'], solution: 'SELECT kunde_id, COUNT(*) AS anzahl FROM bestellung GROUP BY kunde_id HAVING COUNT(*) > 2;', hint: 'Gruppen filtern = `HAVING`, nicht WHERE.', explain: 'COUNT(*) > 2 bezieht sich auf die Gruppe – darum HAVING.' },
+    { id: 'a9', type: 'sql', level: 3, q: 'Welche Kunden haben **mehr als eine gelieferte** Bestellung? Gib `kunde_id` und `anzahl` aus, absteigend nach Anzahl, bei Gleichstand nach `kunde_id`.', tables: ['bestellung'], alias: ['anzahl'], solution: "SELECT kunde_id, COUNT(*) AS anzahl FROM bestellung WHERE status = 'geliefert' GROUP BY kunde_id HAVING COUNT(*) > 1 ORDER BY anzahl DESC, kunde_id;", hint: 'WHERE für den Status (Zeilen), HAVING für die Anzahl (Gruppen).', explain: 'Das klassische Zusammenspiel: erst Zeilen filtern, dann gruppieren, dann Gruppen filtern.' },
+    { id: 'a10', type: 'sql', level: 2, q: 'Aus wie vielen **verschiedenen Orten** kommen die Kunden? Alias `orte`.', tables: ['kunde'], alias: ['orte'], solution: 'SELECT COUNT(DISTINCT ort) AS orte FROM kunde;', hint: '`COUNT(DISTINCT ort)`', explain: 'Ohne DISTINCT würden die Kunden gezählt, nicht die Orte.' },
+    { id: 'a11', type: 'sql', level: 2, q: 'Wie viel **Menge** wurde von jedem Artikel insgesamt bestellt? Gib `artikel_id` und `gesamtmenge` aus – nur Artikel mit einer Gesamtmenge **von mindestens 100**, absteigend sortiert.', tables: ['bestellposition'], alias: ['gesamtmenge'], solution: 'SELECT artikel_id, SUM(menge) AS gesamtmenge FROM bestellposition GROUP BY artikel_id HAVING SUM(menge) >= 100 ORDER BY gesamtmenge DESC;', orderKeys: [1], hint: '`SUM(menge)` je `artikel_id`, filtern mit HAVING.', explain: 'Im HAVING darf man die Aggregatfunktion verwenden (in vielen Systemen auch den Alias).' },
+    { id: 'a12', type: 'sql', level: 3, q: 'Summiere die Buchungsbeträge **je Konto** (`konto`, `summe`) – nur für Buchungen **mit Belegnummer** – und zeige nur Konten, deren Summe **über 10.000 €** liegt.', tables: ['buchung'], alias: ['summe'], solution: 'SELECT konto, SUM(betrag) AS summe FROM buchung WHERE beleg_nr IS NOT NULL GROUP BY konto HAVING SUM(betrag) > 10000;', hint: 'Bedingung auf die Zeile (Beleg) → WHERE. Bedingung auf die Summe → HAVING.', explain: 'Merke: WHERE kann keine Aggregate, HAVING filtert nach dem Gruppieren.' },
+    { id: 'a13', type: 'sql', level: 2, q: 'Wann war die **erste** und wann die **letzte** Bestellung? Aliase `erste` und `letzte`.', tables: ['bestellung'], alias: ['erste', 'letzte'], solution: 'SELECT MIN(bestelldatum) AS erste, MAX(bestelldatum) AS letzte FROM bestellung;', hint: 'MIN und MAX funktionieren auch mit Datumswerten.', explain: 'Bei ISO-Datumswerten liefert MIN das früheste und MAX das späteste Datum.' },
+    { id: 'a14', type: 'mc', level: 1, q: 'Die Spalte `email` enthält bei 3 von 14 Kunden NULL. Was liefert `SELECT COUNT(email) FROM kunde;`?', options: ['14', '11', '3', 'NULL'], correct: 1, explain: 'COUNT(spalte) zählt nur Werte, die nicht NULL sind: 14 − 3 = 11.' },
+    { id: 'a15', type: 'mc', level: 2, q: 'Welche Abfrage ist **fehlerhaft**?', options: ['SELECT ort, COUNT(*) FROM kunde GROUP BY ort;', 'SELECT ort, firma, COUNT(*) FROM kunde GROUP BY ort;', 'SELECT COUNT(*) FROM kunde WHERE ort = \'Kassel\';', 'SELECT ort FROM kunde GROUP BY ort HAVING COUNT(*) > 1;'], correct: 1, explain: '`firma` ist weder in GROUP BY noch in einer Aggregatfunktion. Standard-SQL (und MySQL im Strict-Mode) melden einen Fehler; SQLite liefert stillschweigend eine zufällige Firma – in der Klausur ist das falsch.' },
+    { id: 'a16', type: 'mc', level: 2, q: 'Wofür braucht man **HAVING** statt WHERE?', options: ['Um Zeilen vor dem Gruppieren zu filtern', 'Um Gruppen anhand von Aggregatwerten zu filtern', 'Um das Ergebnis zu sortieren', 'Um Tabellen zu verbinden'], correct: 1, explain: 'HAVING filtert Gruppen nach dem GROUP BY, z. B. `HAVING COUNT(*) > 2`.' },
+    { id: 'a17', type: 'predict', level: 2, q: 'Welcher Wert steht in der Spalte `x`?', setup: "CREATE TABLE messung (id INTEGER, wert INTEGER);\nINSERT INTO messung VALUES (1, 10), (2, NULL), (3, 20), (4, 30);", sql: 'SELECT AVG(wert) AS x FROM messung;', answer: '20', explain: 'AVG ignoriert NULL: (10 + 20 + 30) / 3 = 20 – nicht 60 / 4 = 15!' },
+    { id: 'a18', type: 'predict', level: 2, q: 'Wie viele **Zeilen** liefert die Abfrage?', setup: "CREATE TABLE verkauf (id INTEGER, filiale TEXT, betrag REAL);\nINSERT INTO verkauf VALUES (1,'Nord',100),(2,'Süd',250),(3,'Nord',80),(4,'West',40),(5,'Süd',90),(6,'Nord',30);", sql: 'SELECT filiale, SUM(betrag) AS umsatz\nFROM verkauf\nGROUP BY filiale\nHAVING SUM(betrag) > 200;', answer: '2', explain: 'Nord 210, Süd 340, West 40 → Nord und Süd liegen über 200: 2 Zeilen.' },
+    { id: 'a19', type: 'predict', level: 3, q: 'Welcher Wert steht beim Ergebnis in der Spalte `n`?', setup: "CREATE TABLE verkauf (id INTEGER, filiale TEXT, betrag REAL);\nINSERT INTO verkauf VALUES (1,'Nord',100),(2,'Süd',250),(3,'Nord',80),(4,'West',40),(5,'Süd',90),(6,'Nord',30);", sql: "SELECT COUNT(*) AS n\nFROM verkauf\nWHERE betrag >= 80 AND filiale <> 'Süd';", answer: '2', explain: 'Betrag ≥ 80 und nicht Süd: Nord 100, Nord 80 → 2.' },
+  ],
+};
