@@ -518,7 +518,7 @@ function onboarding() {
   } },
   h('p', { class: 'eyebrow accent' }, 'Willkommen in der'),
   h('h2', { class: 'display', style: { fontSize: '34px' } }, 'SQL', h('em', null, 'werkstatt')),
-  h('p', { class: 'muted' }, '7 Module, über 130 Aufgaben, Probeklausuren mit IHK-Notenschlüssel. Erst verstehen, dann üben, dann unter Zeitdruck bestehen.'),
+  h('p', { class: 'muted' }, '7 Module, über 150 Aufgaben, Probeklausuren mit IHK-Notenschlüssel. Erst verstehen, dann üben, dann unter Zeitdruck bestehen.'),
   h('label', { class: 'field' }, 'Wie heißt du?', name),
   h('label', { class: 'field' }, 'Wann ist deine Klausur? (optional)', date),
   h('p', { class: 'small muted', style: { margin: 0 } }, 'Dein Name dient als Profil – damit kannst du auf anderen Geräten weiterlernen.'),

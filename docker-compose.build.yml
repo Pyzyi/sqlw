@@ -59,8 +59,8 @@ x-casaos:
     de_de: SQL lernen, verstehen, beherrschen
     en_us: Learn, understand and master SQL
   description:
-    de_de: Interaktive Lernwerkstatt zur Klausurvorbereitung in Datenaufbereitung und SQL – Lerneinheiten, über 130 Aufgaben mit echter SQL-Engine, Wiederholung und Probeklausuren mit IHK-Notenschlüssel. Läuft komplett lokal.
-    en_us: Interactive workshop for exam preparation in data preparation and SQL – lessons, 130+ exercises with a real SQL engine, spaced repetition and mock exams. Runs fully local.
+    de_de: Interaktive Lernwerkstatt zur Klausurvorbereitung in Datenaufbereitung und SQL – Lerneinheiten, über 150 Aufgaben mit echter SQL-Engine, Wiederholung und Probeklausuren mit IHK-Notenschlüssel. Läuft komplett lokal.
+    en_us: Interactive workshop for exam preparation in data preparation and SQL – lessons, 150+ exercises with a real SQL engine, spaced repetition and mock exams. Runs fully local.
   title:
     de_de: SQL-Werkstatt
     en_us: SQL Workshop

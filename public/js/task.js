@@ -125,7 +125,7 @@ function predictRenderer(task) {
 
 function sqlRenderer(task, { allowRun = true, onRunHook } = {}) {
   const out = h('div');
-  const startVal = task.type === 'fix' ? task.start : '';
+  const startVal = task.start || '';
   const ed = createEditor({
     value: startVal, minLines: 6, chips: true,
     placeholder: task.type === 'dml' ? 'UPDATE … / INSERT … / DELETE …' : 'SELECT …',

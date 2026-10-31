@@ -56,6 +56,7 @@ for (const m of MODULES) {
         const before = engine.run(db, t.check).last;
         const after = g.check.expected;
         assert.notDeepEqual(before.values, after.values, 'DML-Aufgabe ändert den geprüften Bestand nicht');
+        if (t.start) assert.ok(!engine.grade(t, t.start).ok, 'Fehlerhafte Start-Anweisung wird fälschlich als korrekt bewertet');
       }
       if (t.type === 'predict') {
         const r = engine.predictActual(t);
@@ -76,6 +77,19 @@ test('Bewertung erkennt typische Fehler', () => {
   assert.ok(!r.ok && r.almost, 'Alias-Hinweis erwartet');
   const err = engine.grade(a, 'SELECT COUNT(*) AS anzahl FROM kunden');
   assert.match(err.reason, /Tabelle „kunden“/);
+});
+
+test('Jedes Lernziel ist abgedeckt', () => {
+  const by = (m) => ALL_TASKS.filter((t) => t.module === m);
+  // Joins über genau drei Tabellen
+  assert.ok(ALL_TASKS.filter((t) => t.type === 'sql' && t.tables?.length === 3 && /join/i.test(t.solution)).length >= 3, 'zu wenige 3-Tabellen-Joins');
+  // Fehler finden auch bei INSERT/UPDATE
+  assert.ok(ALL_TASKS.filter((t) => t.type === 'dml' && t.start).length >= 2);
+  // Ergebnis bestimmen
+  assert.ok(ALL_TASKS.filter((t) => t.type === 'predict').length >= 8);
+  // Fehlerarten benennen und Maßnahmen zuordnen
+  assert.ok(by('bereinigung').filter((t) => t.type === 'classify').length >= 3);
+  for (const m of ['qualitaet', 'bereinigung', 'projekt', 'select', 'aggregat', 'joins', 'dml']) assert.ok(by(m).length >= 13, m);
 });
 
 test('Gesamtumfang', () => {

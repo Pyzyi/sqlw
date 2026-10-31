@@ -554,3 +554,4 @@ details.drawer .drawer-body.flush { padding: 0; border-top: 1px solid var(--line
   .card { border-color: #ccc; }
   .content { padding: 0; }
 }
+.task-q code, .lesson code, .feedback code { white-space: normal; overflow-wrap: anywhere; }

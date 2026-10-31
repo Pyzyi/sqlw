@@ -4,7 +4,7 @@ Interaktive Lernwerkstatt zur Klausurvorbereitung **Datenaufbereitung & SQL**.
 Erst verstehen, dann üben, dann unter Zeitdruck bestehen – komplett offline, im Browser, auf deinem eigenen Server.
 
 - **7 Module** genau entlang der Prüfungsthemen – mit Lerneinheiten und ausführbaren Beispielen
-- **131 Aufgaben** in 7 Typen: SQL schreiben, Fehler finden, Daten ändern (INSERT/UPDATE/DELETE), Ergebnis bestimmen, Auswahl, Zuordnen, Reihenfolge
+- **151 Aufgaben** in 7 Typen: SQL schreiben, Fehler finden, Daten ändern (INSERT/UPDATE/DELETE), Ergebnis bestimmen, Auswahl, Zuordnen, Reihenfolge
 - **Echte SQL-Engine** (SQLite als WebAssembly) – jede Abgabe wird gegen eine Musterlösung ausgeführt und verglichen, mit deutschen Fehlermeldungen und konkreten Tipps
 - **Probeklausuren** (20 / 45 / 90 min) mit Timer, Papiermodus und IHK-Notenschlüssel
 - **Wiederholung** nach Karteikasten-Prinzip (1 → 3 → 7 Tage) für alles, was noch nicht sitzt
