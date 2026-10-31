@@ -42,8 +42,10 @@ export function dropPrivileges() {
   const gid = Number(process.env.PGID || 1000);
   try {
     mkdirSync(DATA_DIR, { recursive: true });
-    chownSync(DATA_DIR, uid, gid);
+    // Erst den Inhalt, dann den Ordner selbst: Nach der Übergabe des Ordners darf
+    // root ohne CAP_DAC_OVERRIDE (cap_drop: ALL) ihn nicht mehr lesen.
     for (const f of readdirSync(DATA_DIR)) chownSync(path.join(DATA_DIR, f), uid, gid);
+    chownSync(DATA_DIR, uid, gid);
   } catch (e) {
     console.warn(`[sqlwork] Konnte ${DATA_DIR} nicht übernehmen (${e.code}).`);
   }

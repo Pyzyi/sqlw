@@ -29,7 +29,7 @@ for i in $(seq 1 30); do curl -fs http://127.0.0.1:18095/api/health >/dev/null &
 curl -fs http://127.0.0.1:18095/api/state/ci | grep -q '"xp":7'
 
 # Prozess läuft ohne root und ohne Capabilities, Daten gehören UID 1000
-uid=$(docker top "$NAME" -eo uid,comm | awk '$2=="node"{print $1}' | head -1)
+uid=$(docker top "$NAME" -eo pid,uid,comm | awk '$3=="node"{print $2}' | head -1)
 [ "$uid" = "1000" ] || { echo "Prozess läuft als UID $uid statt 1000"; exit 1; }
 capeff=$(docker exec "$NAME" sh -c 'grep CapEff /proc/1/status' | awk '{print $2}')
 [ "$capeff" = "0000000000000000" ] || { echo "Prozess hat noch Capabilities: $capeff"; exit 1; }
