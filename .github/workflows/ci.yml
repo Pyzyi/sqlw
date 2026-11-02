@@ -38,11 +38,46 @@ jobs:
           tags: sqlw:ci
       - run: e2e/container-test.sh sqlw:ci
 
-  publish:
-    name: Image veröffentlichen
-    if: github.event_name == 'push'
+  release:
+    name: Release anlegen (bei neuer VERSION)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     needs: container
+    permissions:
+      contents: write
+    outputs:
+      release: ${{ steps.v.outputs.release }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: v
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v="$(tr -d ' \n\r' < VERSION)"
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::VERSION '$v' ist nicht x.y.z"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$v" >/dev/null; then
+            echo "release=false" >> "$GITHUB_OUTPUT"; echo "v$v existiert bereits"; exit 0
+          fi
+          # Abschnitt der Version aus dem CHANGELOG als Release-Text
+          awk -v ver="## v$v" 'index($0, ver)==1 {f=1; next} /^## v/ {f=0} f' CHANGELOG.md > notes.md
+          {
+            echo ""
+            echo "### Installation / Update"
+            echo "ZimaOS: App aktualisieren bzw. \`docker compose pull && docker compose up -d\`."
+            echo "Image: \`ghcr.io/${GITHUB_REPOSITORY,,}:$v\`"
+          } >> notes.md
+          gh release create "v$v" --target "$GITHUB_SHA" --title "v$v" --notes-file notes.md
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Image veröffentlichen
+    if: always() && github.event_name == 'push' && needs.container.result == 'success' && needs.release.result != 'failure'
+    runs-on: ubuntu-24.04
+    needs: [container, release]
     permissions:
       contents: read
       packages: write
@@ -65,6 +100,7 @@ jobs:
           images: ${{ env.IMAGE }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.release == 'true' }}
             type=semver,pattern={{version}}
             type=sha,format=short
       - uses: docker/build-push-action@v6
