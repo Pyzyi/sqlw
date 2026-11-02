@@ -9,7 +9,7 @@ LABEL org.opencontainers.image.title="SQL-Werkstatt" \
 ENV NODE_ENV=production \
     PORT=8080 \
     DATA_DIR=/data \
-    APP_VERSION=2.0.0
+    APP_VERSION=2.0.1
 
 WORKDIR /app
 COPY --chown=node:node package.json ./

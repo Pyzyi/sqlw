@@ -136,7 +136,9 @@ export function recordAttempt(task, { correct, hintUsed = false, shown = false, 
         if (ts.box > 3) { delete ts.box; delete ts.due; ts.reviewDone = (ts.reviewDone || 0) + 1; state.reviewCleared = (state.reviewCleared || 0) + 1; }
         else ts.due = addDays(todayISO(), [0, 1, 3, 7][ts.box]);
       }
-    } else if (ts.attempts > 1 || ts.hint || ts.shown) {
+    } else if (first && (ts.attempts > 1 || ts.hint || ts.shown)) {
+      // Nur beim ersten Lösen: wer Fehlversuche, Hinweis oder Lösung brauchte, wiederholt die Aufgabe.
+      // Erneut richtig gelöste Aufgaben (z. B. in der Probeklausur) landen nicht im Karteikasten.
       ts.box = 1; ts.due = addDays(todayISO(), 1);
     }
   } else {

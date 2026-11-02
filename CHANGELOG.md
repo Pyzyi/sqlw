@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.0.1 – Fehlerbehebung
+
+### Behoben
+- Aufgaben, die schon gelöst waren und in einer Probeklausur erneut richtig beantwortet wurden, landeten fälschlich in der Wiederholung und senkten die Klausurreife.
+- Die Auswertung einer fehlerfreien Probeklausur meldete trotzdem „Falsch beantwortete Aufgaben sind in deiner Wiederholung“.
+- Neue Tests für die Lernstand-Logik (XP, Wiederholung).
+
 ## v2.0.0 – Übungsblatt & Formelsammlung
 
 ### Neu

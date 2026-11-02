@@ -212,7 +212,7 @@ function showResult(container, entry, results, timeUp, setCrumbs) {
       h('div', null,
         h('p', { class: 'eyebrow accent' }, timeUp ? 'Zeit abgelaufen · Auswertung' : 'Auswertung'),
         h('h1', { class: 'display' }, `${String(entry.score).replace('.', ',')} von ${entry.max} Punkten`),
-        h('p', { class: 'lead' }, `${Math.round(pct)} % · Note ${g.n} (${g.t}). `, pct >= 50 ? 'Bestanden. ' : 'Noch nicht bestanden. ', 'Falsch beantwortete Aufgaben sind jetzt in deiner Wiederholung.'),
+        h('p', { class: 'lead' }, `${Math.round(pct)} % · Note ${g.n} (${g.t}). `, pct >= 50 ? 'Bestanden. ' : 'Noch nicht bestanden. ', results.some((r) => !r.empty && !r.ok) ? 'Falsch beantwortete Aufgaben sind jetzt in deiner Wiederholung.' : 'Alle bearbeiteten Aufgaben richtig – stark!'),
         h('div', { class: 'hero-actions' },
           h('a', { class: 'btn primary', href: '#/wiederholen' }, icon('repeat'), 'Zur Wiederholung'),
           h('button', { class: 'btn', type: 'button', onclick: () => renderExam(container, setCrumbs) }, 'Neue Klausur'))),
