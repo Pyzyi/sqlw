@@ -7,6 +7,8 @@ import { renderBlocks, erDiagram, refTable } from './widgets.js';
 import { renderTaskWorkspace, schemaPanel, onCelebrate, TYPE_LABEL } from './task.js';
 import { renderExam } from './exam.js';
 import { createEditor, highlight } from './editor.js';
+import { formelsammlungView } from './formelsammlung.js';
+import { DATABASES } from './engine.js';
 
 const app = document.getElementById('app');
 let view, crumbsEl, statsEl, navEl, mobileEl;
@@ -15,11 +17,12 @@ let view, crumbsEl, statsEl, navEl, mobileEl;
 async function boot() {
   applyTheme();
   try {
-    const [SQL, seed] = await Promise.all([
+    const load = (f) => fetch(f).then((r) => { if (!r.ok) throw new Error(f); return r.text(); });
+    const [SQL, baustoff, buecherei] = await Promise.all([
       window.initSqlJs({ locateFile: (f) => `vendor/${f}` }),
-      fetch('data/seed.sql').then((r) => { if (!r.ok) throw new Error('seed'); return r.text(); }),
+      load('data/seed.sql'), load('data/buecherei.sql'),
     ]);
-    engine.setup(SQL, seed);
+    engine.setup(SQL, { baustoff, buecherei });
   } catch (e) {
     app.replaceChildren(h('div', { class: 'boot' }, h('div', null, h('div', { class: 'brand-mark' }, 'SQL', h('em', null, 'werkstatt')), h('p', null, 'Die Datenbank-Engine konnte nicht geladen werden.'), h('p', { class: 'small' }, String(e.message || e)))));
     return;
@@ -45,7 +48,8 @@ const NAV = [
   { href: '#/wiederholen', t: 'Wiederholen', i: 'repeat', badge: () => store.dueReviews().length || null },
   { href: '#/klausur', t: 'Probeklausur', i: 'exam' },
   { href: '#/spielwiese', t: 'Spielwiese', i: 'terminal' },
-  { href: '#/spickzettel', t: 'Spickzettel', i: 'sheet' },
+  { href: '#/formelsammlung', t: 'Formelsammlung', i: 'sheet' },
+  { href: '#/spickzettel', t: 'Spickzettel', i: 'grid' },
   { href: '#/erfolge', t: 'Erfolge', i: 'trophy' },
   { href: '#/einstellungen', t: 'Einstellungen', i: 'gear' },
 ];
@@ -128,6 +132,7 @@ function route() {
       case 'klausur': view.className = 'content wide'; return renderExam(view, setCrumbs);
       case 'spielwiese': view.className = 'content wide'; return playground();
       case 'spickzettel': return cheatsheet();
+      case 'formelsammlung': return formelPage();
       case 'erfolge': return achievements();
       case 'einstellungen': return settings();
       case 'lernen': return learnIndex();
@@ -182,8 +187,8 @@ function dashboard() {
       h('div', { class: 'card kpi' },
         h('div', { class: 'eyebrow' }, 'Klausurreife'),
         h('div', { class: 'kpi-val' }, String(r.score), h('small', null, '%')),
-        h('div', { class: 'readiness-seg', title: 'Beherrschung je Modul' }, r.mastery.map((v) => { const i = h('i', { class: v >= 0.99 ? 'full' : '' }); i.style.height = `${Math.round(v * 100)}%`; return h('span', null, i); })),
-        h('div', { class: 'readiness-legend' }, MODULES.map((m) => h('span', null, m.nr))),
+        h('div', { class: 'readiness-seg', title: 'Beherrschung je Modul', style: { gridTemplateColumns: `repeat(${MODULES.length}, 1fr)` } }, r.mastery.map((v) => { const i = h('i', { class: v >= 0.99 ? 'full' : '' }); i.style.height = `${Math.round(v * 100)}%`; return h('span', null, i); })),
+        h('div', { class: 'readiness-legend', style: { gridTemplateColumns: `repeat(${MODULES.length}, 1fr)` } }, MODULES.map((m) => h('span', null, m.nr))),
         h('p', null, r.exam === null ? 'Schreib eine Probeklausur, um über 85 % zu kommen.' : r.weakest.v < 1 ? h('span', null, 'Schwächstes Thema: ', h('a', { href: `#/modul/${r.weakest.m.id}` }, r.weakest.m.title)) : 'Stark in allen Themen.')),
       h('div', { class: 'card kpi' },
         h('div', { class: 'eyebrow' }, `Stufe ${lv.idx + 1} von 6`),
@@ -287,6 +292,7 @@ function taskList(m) {
       const ts = store.taskState(`${m.id}/${t.id}`);
       return h('a', { class: `task-tile${ts?.status === 'solved' ? ' solved' : ''}`, href: `#/aufgabe/${m.id}/${t.id}` },
         h('div', { class: 'tt-head' }, h('span', null, `${m.nr}.${String(i + 1).padStart(2, '0')}`), h('span', null, TYPE_LABEL[t.type]), levelDots(t.level),
+          t.zusatz ? h('span', { class: 'pill warn', title: 'Über die Formelsammlung hinaus' }, 'Vertiefung') : null,
           h('span', { class: `st st-dot ${ts?.status || ''}`, title: ts?.status === 'solved' ? 'gelöst' : ts?.status === 'tried' ? 'versucht' : 'offen' })),
         h('div', { class: 'tt-q', html: md(t.q) }));
     })));
@@ -341,9 +347,10 @@ function boxOverview(all, compact) {
 
 // ---------- Spielwiese ----------
 let pgDb = null;
+let pgName = 'baustoff';
 function playground() {
   setCrumbs(['Spielwiese']);
-  if (!pgDb) pgDb = engine.freshDb();
+  if (!pgDb) pgDb = engine.freshDb(pgName);
   const out = h('div');
   const hist = JSON.parse(sessionStorage.getItem('sqlwork.hist') || '[]');
   const histEl = h('div', { class: 'stack' });
@@ -356,20 +363,23 @@ function playground() {
     if (r.ok) { const i = hist.indexOf(q); if (i >= 0) hist.splice(i, 1); hist.unshift(q); hist.length = Math.min(hist.length, 20); try { sessionStorage.setItem('sqlwork.hist', JSON.stringify(hist)); } catch { /* */ } drawHist(); }
     store.state.playgroundRuns = (store.state.playgroundRuns || 0) + 1;
   };
+  const dbSel = h('select', { class: 'select', style: { width: 'auto' }, 'aria-label': 'Datenbank', onchange: (e) => { pgName = e.target.value; pgDb.close(); pgDb = engine.freshDb(pgName); store.setDraft('__pg', pgName === 'buecherei' ? 'SELECT b.Titel, v.Name\nFROM Buch b\nJOIN Verlag v ON b.VerlagNr = v.VerlagNr;' : 'SELECT * FROM kunde;'); playground(); } },
+    Object.entries(DATABASES).map(([k, d]) => h('option', { value: k, selected: k === pgName }, d.t)));
   const ed = createEditor({ value: store.state.drafts.__pg || 'SELECT k.firma, COUNT(b.bestell_id) AS bestellungen\nFROM kunde k\nLEFT JOIN bestellung b ON b.kunde_id = k.kunde_id\nGROUP BY k.firma\nORDER BY bestellungen DESC;', minLines: 8, chips: true, onRun: exec, onChange: (v) => store.setDraft('__pg', v) });
   drawHist();
-  const db0 = engine.freshDb();
+  const db0 = engine.freshDb(pgName);
   const tables = engine.tableNames(db0);
   db0.close();
   view.replaceChildren(
     h('div', { class: 'row', style: { marginBottom: '20px' } },
       h('div', null, h('p', { class: 'eyebrow accent' }, 'Spielwiese'), h('h1', { class: 'h2' }, 'Freies Experimentieren')),
       h('span', { class: 'spacer' }),
-      h('button', { class: 'btn', type: 'button', onclick: () => { pgDb.close(); pgDb = engine.freshDb(); out.replaceChildren(h('div', { class: 'empty-res' }, 'Datenbank auf Ausgangszustand zurückgesetzt.')); } }, icon('reset'), 'Datenbank zurücksetzen')),
+      dbSel,
+      h('button', { class: 'btn', type: 'button', onclick: () => { pgDb.close(); pgDb = engine.freshDb(pgName); out.replaceChildren(h('div', { class: 'empty-res' }, 'Datenbank auf Ausgangszustand zurückgesetzt.')); } }, icon('reset'), 'Datenbank zurücksetzen')),
     h('div', { class: 'task-layout' },
       h('div', { class: 'task-brief' },
         h('p', { class: 'muted small' }, 'Alles ist erlaubt – auch INSERT, UPDATE, DELETE und CREATE TABLE. Änderungen bleiben bis zum Zurücksetzen bestehen. Klick auf eine Spalte fügt sie ein.'),
-        h('details', { class: 'drawer', open: true }, h('summary', null, icon('db'), 'Tabellen'), h('div', { class: 'drawer-body flush' }, schemaPanel(tables, (name, isTable) => { if (isTable) { ed.value = `SELECT *\nFROM ${name}\nLIMIT 20;`; exec(); } else ed.insert(name); }))),
+        h('details', { class: 'drawer', open: true }, h('summary', null, icon('db'), 'Tabellen'), h('div', { class: 'drawer-body flush' }, schemaPanel(tables, (name, isTable) => { if (isTable) { ed.value = `SELECT *\nFROM ${name}\nLIMIT 20;`; exec(); } else ed.insert(name); }, pgName))),
         h('details', { class: 'drawer' }, h('summary', null, icon('grid'), 'ER-Diagramm'), h('div', { class: 'drawer-body' }, h('a', { class: 'btn sm', href: '#/spickzettel' }, 'Im Spickzettel öffnen'))),
         hist.length || true ? h('details', { class: 'drawer' }, h('summary', null, icon('clock'), 'Verlauf'), h('div', { class: 'drawer-body' }, histEl)) : null),
       h('div', null,
@@ -398,10 +408,21 @@ function cheatsheet() {
       c('Daten ändern', pre("INSERT INTO t (a, b) VALUES (1, 'x');\nUPDATE t SET b = 'y' WHERE a = 1;\nDELETE FROM t WHERE a = 1;"), mdEl('p', '**Ohne WHERE trifft es alle Zeilen.** Vorher mit SELECT prüfen. Abhängige Datensätze (FK) zuerst löschen.', { class: 'small' })),
       c('Bereinigen', refTable({ head: ['Funktion', 'Zweck'], rows: [['`TRIM(x)`', 'Leerzeichen am Rand'], ['`UPPER` / `LOWER`', 'Schreibweise'], ['`REPLACE(x,a,b)`', 'ersetzen'], ['`LENGTH(x)`', 'Länge prüfen'], ['`SUBSTR(x,s,l)`', 'Teilstück'], ['`COALESCE(x,y)`', 'Ersatz für NULL'], ['`CASE WHEN … END`', 'zuordnen']] })),
       c('Fehlerarten → Maßnahmen', refTable({ head: ['Art', 'Maßnahme'], rows: [['fehlend', 'ergänzen, erfragen, Pflichtfeld'], ['ungültig', 'korrigieren, Validierung/CHECK'], ['uneinheitlich', 'standardisieren (TRIM, CASE, ISO-Datum)'], ['doppelt', 'zusammenführen, löschen, UNIQUE']] })),
-      c('Datenqualität', mdEl('p', '**K**orrekt · **V**ollständig · **K**onsistent · **E**indeutig · **E**inheitlich · **G**ültig · **A**ktuell (+ Relevanz, Genauigkeit, Verständlichkeit)'), mdEl('p', 'DSGVO Art. 5: **Richtigkeit**, Datenminimierung, Speicherbegrenzung, Zweckbindung. Rechte: Auskunft (15), Berichtigung (16), Löschung (17).', { class: 'small' })),
+      c('Datenqualität', mdEl('p', 'Die vier Kriterien: **Vollständigkeit** (alles da?) · **Korrektheit** (stimmt es?) · **Konsistenz** (widerspruchsfrei?) · **Aktualität** (neuester Stand?). Ergänzend: Eindeutigkeit, Einheitlichkeit, Gültigkeit.'), mdEl('p', 'DSGVO Art. 5: **Richtigkeit**, Datenminimierung, Speicherbegrenzung, Zweckbindung. Rechte: Auskunft (15), Berichtigung (16), Löschung (17).', { class: 'small' })),
       c('Auffällige Buchungen', h('ul', { class: 'small' }, ['doppelte Belegnummer', 'fehlender Beleg', 'Wochenende / Feiertag', 'knapp unter Freigabegrenze', 'runde, hohe Beträge', 'negative Beträge ohne Grund', 'unberechtigte Person', 'Datum in der Zukunft', 'Ausreißer (> 3 × Durchschnitt)'].map((x) => h('li', null, x)))),
       c('Kanban', mdEl('p', '**Pull-Prinzip:** Arbeit wird geholt, wenn Kapazität frei ist (nicht zugeschoben). **WIP-Limit:** max. Karten pro Spalte → keine Überlastung, Engpässe sichtbar, kürzere Durchlaufzeit. *Stop starting, start finishing.*', { class: 'small' })),
       c('Typische Fehler', h('ul', { class: 'small' }, ['Komma fehlt/zu viel', "Text ohne ' '", '= NULL statt IS NULL', 'Aggregat in WHERE → HAVING', 'Spalte fehlt in GROUP BY', 'Klauseln falsch sortiert', 'mehrdeutige Spalte → Alias', 'Join-Bedingung fehlt', 'AND/OR ohne Klammern', 'LIKE ohne %', '= statt IN bei Liste'].map((x) => h('li', null, x))))));
+}
+
+// ---------- Formelsammlung ----------
+function formelPage() {
+  setCrumbs(['Formelsammlung']);
+  view.replaceChildren(
+    h('div', { class: 'row no-print', style: { marginBottom: '22px' } },
+      h('div', null, h('p', { class: 'eyebrow accent' }, 'In der Klausur erlaubt'), h('h1', { class: 'display' }, 'Formelsammlung.')),
+      h('span', { class: 'spacer' }), h('button', { class: 'btn', type: 'button', onclick: () => window.print() }, 'Drucken')),
+    h('p', { class: 'lead', style: { marginBottom: '24px' } }, 'Genau diese Syntax darfst du in der Klausur nachschlagen. Alles, was hier nicht steht (z. B. LEFT JOIN, UNION, CASE, TRIM), ist in der App als „Vertiefung“ markiert und kommt in der Probeklausur nicht vor. Eckige Klammern [ ] bedeuten: optional.'),
+    h('div', { class: 'card' }, formelsammlungView()));
 }
 
 // ---------- Erfolge ----------
@@ -518,7 +539,7 @@ function onboarding() {
   } },
   h('p', { class: 'eyebrow accent' }, 'Willkommen in der'),
   h('h2', { class: 'display', style: { fontSize: '34px' } }, 'SQL', h('em', null, 'werkstatt')),
-  h('p', { class: 'muted' }, '7 Module, über 150 Aufgaben, Probeklausuren mit IHK-Notenschlüssel. Erst verstehen, dann üben, dann unter Zeitdruck bestehen.'),
+  h('p', { class: 'muted' }, '8 Module inkl. Übungsblatt, rund 200 Aufgaben, Formelsammlung und Probeklausuren mit IHK-Notenschlüssel. Erst verstehen, dann üben, dann unter Zeitdruck bestehen.'),
   h('label', { class: 'field' }, 'Wie heißt du?', name),
   h('label', { class: 'field' }, 'Wann ist deine Klausur? (optional)', date),
   h('p', { class: 'small muted', style: { margin: 0 } }, 'Dein Name dient als Profil – damit kannst du auf anderen Geräten weiterlernen.'),

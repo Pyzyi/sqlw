@@ -2,16 +2,22 @@
 import { h, md, mdEl, icon, levelDots, toast, confirmDialog, shuffle, todayISO } from './ui.js';
 import { codeBlock } from './editor.js';
 import { makeRenderer, TYPE_LABEL } from './task.js';
+import { dataTable } from './ui.js';
+import { formelsammlungButton } from './formelsammlung.js';
+import * as engine from './engine.js';
 import * as store from './store.js';
 import { MODULES, MODULE_BY_ID, TASK_BY_KEY } from './content/index.js';
 
 export const FORMATS = {
+  blatt: { t: 'Übungsblatt-Klausur', min: 90, fixed: 'uebungsblatt', s: 'Das komplette Übungsblatt (Teil A + B) unter Zeitdruck – so nah an der Klausur wie möglich.' },
   kurz: { t: 'Kurztest', min: 20, per: { qualitaet: 1, bereinigung: 2, projekt: 1, select: 2, aggregat: 1, joins: 2, dml: 1 }, s: '10 Aufgaben · 20 Minuten. Für zwischendurch.' },
   standard: { t: 'Probeklausur', min: 45, per: { qualitaet: 2, bereinigung: 3, projekt: 2, select: 3, aggregat: 3, joins: 4, dml: 3 }, s: '20 Aufgaben · 45 Minuten. Alle Themen wie in der echten Klausur.' },
   voll: { t: 'Generalprobe', min: 90, per: { qualitaet: 3, bereinigung: 5, projekt: 3, select: 5, aggregat: 5, joins: 6, dml: 5 }, s: '32 Aufgaben · 90 Minuten. Ausdauer-Test kurz vor der Prüfung.' },
 };
 
 export function points(t) {
+  if (t.type === 'text') return t.points.length;
+  if (t.type === 'grid') return 4;
   if (['sql', 'fix', 'dml'].includes(t.type)) return 3 + t.level;
   if (t.type === 'mc') return t.multi ? 3 : 2;
   return 3;
@@ -28,10 +34,15 @@ export function gradeFor(pct) {
 
 function buildExam(fmt) {
   const keys = [];
+  const F = FORMATS[fmt];
+  if (F.fixed) {
+    keys.push(...MODULE_BY_ID[F.fixed].tasks.map((t) => `${F.fixed}/${t.id}`).filter((k) => !TASK_BY_KEY[k].zusatz));
+    return { fmt, keys, answers: {}, startedAt: Date.now(), endsAt: Date.now() + F.min * 60e3, paper: store.state.paperMode, seed: Math.floor(Math.random() * 1e9), cur: 0 };
+  }
   for (const m of MODULES) {
-    const n = FORMATS[fmt].per[m.id] || 0;
-    // Bevorzugt ungelöste/schwache Aufgaben, aber gemischt
-    const pool = shuffle(m.tasks.map((t) => `${m.id}/${t.id}`));
+    const n = F.per[m.id] || 0;
+    // Bevorzugt ungelöste/schwache Aufgaben, aber gemischt; nur Klausurstoff (Formelsammlung)
+    const pool = shuffle(m.tasks.map((t) => `${m.id}/${t.id}`).filter((k) => !TASK_BY_KEY[k].zusatz && TASK_BY_KEY[k].type !== 'text'));
     pool.sort((a, b) => (store.isSolved(a) ? 1 : 0) - (store.isSolved(b) ? 1 : 0) + (Math.random() - 0.5) * 1.2);
     keys.push(...pool.slice(0, n));
   }
@@ -53,9 +64,9 @@ export function renderExam(container, setCrumbs) {
       h('div', null,
         h('p', { class: 'eyebrow accent' }, 'Klausur-Simulation'),
         h('h1', { class: 'display' }, 'Unter ', h('em', null, 'echten'), ' Bedingungen üben.'),
-        h('p', { class: 'lead' }, 'Zufällige Aufgaben aus allen Themen, Zeitlimit, keine Hinweise, kein Feedback bis zur Abgabe. Bewertet nach dem IHK-Notenschlüssel. Falsche Antworten landen automatisch in deiner Wiederholung.'))),
+        h('p', { class: 'lead' }, 'Zeitlimit, keine Hinweise, kein Feedback bis zur Abgabe – aber mit Formelsammlung, wie in der echten Klausur. Nur Klausurstoff: Aufgaben, die über die Formelsammlung hinausgehen, sind ausgeschlossen. Bewertet nach dem IHK-Notenschlüssel.'))),
     h('div', { class: 'section' },
-      h('div', { class: 'choice-cards' }, cards),
+      h('div', { class: 'choice-cards four' }, cards),
       h('label', { class: 'switch card', style: { marginTop: '16px' } }, paper,
         h('span', null, h('strong', null, 'Papiermodus'), h('br'), h('span', { class: 'small muted' }, 'SQL-Abfragen können nicht ausgeführt werden – du musst sie wie auf Papier im Kopf prüfen. Empfohlen, je näher die Klausur rückt.'))),
       h('div', { class: 'actions' }, h('button', { class: 'btn accent lg', type: 'button', onclick: () => { store.state.activeExam = buildExam(fmt); store.save(); runExam(container, store.state.activeExam, setCrumbs); } }, icon('clock'), 'Klausur starten'))),
@@ -89,7 +100,7 @@ function runExam(container, ex, setCrumbs) {
       h('div', { class: 'task-brief' },
         h('div', { class: 'task-meta' }, h('span', { class: 'eyebrow' }, `Aufgabe ${ex.cur + 1} / ${tasks.length}`), h('span', { class: 'pill' }, TYPE_LABEL[t.type]), levelDots(t.level), h('span', { class: 'pill accent' }, `${points(t)} Punkte`)),
         h('div', { class: 'task-q', html: t.q.split('\n\n').map((p) => `<p>${md(p)}</p>`).join('') }),
-        isSql ? h('p', { class: 'small muted' }, `Tabellen: ${(t.tables || []).join(', ')}`) : null,
+        isSql ? h('p', { class: 'small muted' }, `Tabellen: ${(t.tables || []).join(', ')}${t.db === 'buecherei' ? ' (Bücherei)' : ''}`) : null,
         isSql && ex.paper ? h('p', { class: 'small muted' }, 'Papiermodus: Ausführen ist deaktiviert.') : null),
       h('div', null, renderer.el,
         h('div', { class: 'actions' },
@@ -115,11 +126,13 @@ function runExam(container, ex, setCrumbs) {
       if (!ok) return;
     }
     clearInterval(timerId);
+    const ticksByIdx = await selfCheckStep(container, tasks, ex);
     const results = tasks.map((t, i) => {
       const r = makeRenderer(t, { seed: ex.seed + i });
       const a = ex.answers[i];
       if (a == null || emptyAns(a)) return { key: t.key, pts: 0, max: points(t), score: 0, answer: a, empty: true };
       r.restore(a);
+      if (t.type === 'text') r.setTicks(ticksByIdx[i] || []);
       const c = r.check();
       const pts = Math.round(c.score * points(t) * 2) / 2;
       return { key: t.key, pts, max: points(t), score: c.score, ok: c.ok, answer: a, reason: c.reason };
@@ -148,7 +161,7 @@ function runExam(container, ex, setCrumbs) {
     }
   };
   container.replaceChildren(
-    h('div', { class: 'exam-bar' }, icon('clock'), timer, h('span', { class: 'spacer' }), nav,
+    h('div', { class: 'exam-bar' }, icon('clock'), timer, formelsammlungButton(), h('span', { class: 'spacer' }), nav,
       h('button', { class: 'btn ghost sm', type: 'button', onclick: abort }, 'Abbrechen'),
       h('button', { class: 'btn accent sm', type: 'button', onclick: () => finish(false) }, 'Abgeben')),
     body);
@@ -157,6 +170,35 @@ function runExam(container, ex, setCrumbs) {
   timerId = setInterval(() => { if (!document.body.contains(timer)) { saveCur(); clearInterval(timerId); return; } if (++n % 5 === 0) saveCur(); tick(); }, 1000);
   tick();
   draw();
+}
+
+/** Freitext-Antworten mit dem Erwartungshorizont abgleichen, bevor bewertet wird. */
+function selfCheckStep(container, tasks, ex) {
+  const idx = tasks.map((t, i) => i).filter((i) => tasks[i].type === 'text' && ex.answers[i] && String(ex.answers[i]).trim());
+  if (!idx.length) return Promise.resolve({});
+  return new Promise((resolve) => {
+    const boxes = {};
+    container.replaceChildren(
+      h('p', { class: 'eyebrow accent' }, 'Selbstkontrolle'),
+      h('h1', { class: 'display' }, 'Freitext-Antworten abgleichen.'),
+      h('p', { class: 'lead' }, 'Vergleiche jede Antwort mit dem Erwartungshorizont und hake ehrlich ab, was du genannt hast. Danach wird die Klausur benotet.'),
+      h('div', { class: 'stack section' }, idx.map((i) => {
+        const t = tasks[i];
+        boxes[i] = t.points.map(() => h('input', { type: 'checkbox' }));
+        return h('div', { class: 'card stack' },
+          h('div', { class: 'task-q', html: md(t.q.split('\n\n')[0]) }),
+          h('p', { class: 'eyebrow' }, 'Deine Antwort'),
+          h('div', { class: 'textshow' }, String(ex.answers[i])),
+          h('p', { class: 'eyebrow' }, `Erwartungshorizont · ${t.points.length} Punkte`),
+          t.points.map((pt, k) => h('label', { class: 'switch' }, boxes[i][k], h('span', { html: md(pt) }))));
+      })),
+      h('div', { class: 'actions' }, h('button', { class: 'btn accent lg', type: 'button', onclick: () => {
+        const out = {};
+        for (const i of idx) out[i] = boxes[i].map((b) => b.checked);
+        resolve(out);
+      } }, 'Klausur auswerten')));
+    window.scrollTo({ top: 0 });
+  });
 }
 
 const emptyAns = (a) => a === '' || (Array.isArray(a) && a.length === 0) || (typeof a === 'object' && a && !Array.isArray(a) && Object.keys(a).length === 0);
@@ -211,6 +253,8 @@ function answerView(t, r) {
   if (t.type === 'classify') return h('ul', null, t.items.map((it, i) => h('li', { html: `${md(it.t)} → <strong>${t.categories[a[i]] ?? '—'}</strong>` })));
   if (t.type === 'order') return h('ol', null, a.map((i) => mdEl('li', t.items[i])));
   if (t.type === 'predict') return h('p', null, h('code', null, a));
+  if (t.type === 'text') return h('div', { class: 'textshow' }, String(a));
+  if (t.type === 'grid') return dataTable({ columns: engine.predictActual(t).columns, values: a.filter((r) => r.some((v) => String(v).trim())) });
   return h('div', { class: 'solution-code' }, codeBlock(a));
 }
 function solutionView(t) {
@@ -218,6 +262,8 @@ function solutionView(t) {
   if (t.type === 'classify') return h('ul', null, t.items.map((it) => h('li', { html: `${md(it.t)} → <strong>${t.categories[it.c]}</strong>` })));
   if (t.type === 'order') return h('ol', null, t.items.map((x) => mdEl('li', x)));
   if (t.type === 'predict') return h('p', null, h('code', null, t.answer));
+  if (t.type === 'text') return h('div', null, h('ul', null, t.points.map((p) => mdEl('li', p))), h('div', { class: 'textshow', html: String(t.model).split('\n').map((p) => md(p)).join('<br>') }));
+  if (t.type === 'grid') return dataTable(engine.predictActual(t));
   return h('div', { class: 'solution-code' }, codeBlock(t.solution));
 }
 

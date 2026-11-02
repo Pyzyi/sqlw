@@ -2,19 +2,28 @@
 // Läuft im Browser und in Node (Tests) – das SQL-Modul wird von außen übergeben.
 
 let SQL = null;
-let seedBytes = null;
+const seedBytes = {};
 
-export function setup(sqlModule, seedSql) {
+export const DATABASES = {
+  baustoff: { t: 'Baustoffhandel', file: 'data/seed.sql' },
+  buecherei: { t: 'Stadtbücherei (Übungsblatt)', file: 'data/buecherei.sql' },
+};
+
+/** seeds: { baustoff: '…sql', buecherei: '…sql' } (oder ein String für baustoff) */
+export function setup(sqlModule, seeds) {
   SQL = sqlModule;
-  const db = new SQL.Database();
-  db.exec(seedSql);
-  seedBytes = db.export();
-  db.close();
+  if (typeof seeds === 'string') seeds = { baustoff: seeds };
+  for (const [name, sql] of Object.entries(seeds)) {
+    const db = new SQL.Database();
+    db.exec(sql);
+    seedBytes[name] = db.export();
+    db.close();
+  }
 }
 
-/** Frische Kopie der Lerndatenbank (jede Aufgabe startet sauber). */
-export function freshDb() {
-  const db = new SQL.Database(seedBytes);
+/** Frische Kopie einer Lerndatenbank (jede Aufgabe startet sauber). */
+export function freshDb(name = 'baustoff') {
+  const db = new SQL.Database(seedBytes[name] || seedBytes.baustoff);
   db.exec('PRAGMA foreign_keys = ON;');
   return db;
 }
@@ -122,11 +131,11 @@ function permutedMatch(u, e) {
 export function grade(task, userSql) {
   if (!userSql || !userSql.trim()) return { ok: false, reason: 'Das Eingabefeld ist leer.' };
   if (task.type === 'dml') {
-    const dbU = freshDb();
+    const dbU = freshDb(task.db);
     const rU = run(dbU, userSql);
     if (!rU.ok) { dbU.close(); return { ok: false, error: rU.error, reason: translateError(rU.error) }; }
     if (!/\b(insert|update|delete)\b/i.test(userSql)) { dbU.close(); return { ok: false, reason: 'Hier ist eine Änderung gefragt (INSERT, UPDATE oder DELETE) – ein SELECT allein ändert nichts.' }; }
-    const dbS = freshDb();
+    const dbS = freshDb(task.db);
     run(dbS, task.solution);
     const cu = run(dbU, task.check), cs = run(dbS, task.check);
     dbU.close(); dbS.close();
@@ -134,10 +143,13 @@ export function grade(task, userSql) {
     if (!cmp.ok) return { ok: false, reason: 'Der Datenbestand nach deiner Änderung stimmt nicht mit dem erwarteten überein. Prüfe WHERE-Bedingung und neue Werte.', check: { user: cu.last, expected: cs.last } };
     return { ok: true, check: { user: cu.last, expected: cs.last } };
   }
-  const dbU = freshDb();
+  const dbU = freshDb(task.db);
   const rU = run(dbU, userSql);
   dbU.close();
   if (!rU.ok) return { ok: false, error: rU.error, reason: translateError(rU.error) };
+  for (const req of task.require || []) {
+    if (!new RegExp(req.re, 'i').test(userSql)) return { ok: false, reason: req.msg, result: rU.last };
+  }
   if (/\b(insert|update|delete|drop|alter|create)\b/i.test(userSql) && !/^\s*select/i.test(userSql)) {
     return { ok: false, reason: 'Hier ist eine Abfrage (SELECT) gefragt, keine Änderung.' };
   }
@@ -150,7 +162,7 @@ const expectedCache = new Map();
 export function expectedResult(task) {
   const k = task.key || task.id;
   if (expectedCache.has(k)) return expectedCache.get(k);
-  const db = freshDb();
+  const db = freshDb(task.db);
   let r;
   if (task.type === 'dml') { run(db, task.solution); r = run(db, task.check); }
   else r = run(db, task.solution);
@@ -162,7 +174,7 @@ export function expectedResult(task) {
 
 /** Ergebnis einer Vorhersage-Aufgabe (erste Zelle bzw. Zeilenanzahl). */
 export function predictActual(task) {
-  const db = scratchDb(task.setup);
+  const db = task.setup ? scratchDb(task.setup) : freshDb(task.db);
   const r = run(db, task.sql);
   db.close();
   return r.last;
@@ -173,6 +185,19 @@ export function normalizeAnswer(s) {
 }
 
 // ---------- Fehlermeldungen auf Deutsch ----------
+
+/** Vergleicht eine selbst ausgefüllte Ergebnistabelle mit dem echten Ergebnis. */
+export function gradeGrid(task, rows) {
+  const exp = predictActual(task);
+  const n = (v) => normalizeAnswer(v === null || v === undefined ? 'null' : typeof v === 'number' ? String(Math.round(v * 100) / 100) : v);
+  const want = exp.values.map((r) => r.map(n).join('|'));
+  const have = (rows || []).map((r) => r.map(n).join('|'));
+  const pool = [...want];
+  let hits = 0;
+  for (const h of have) { const i = pool.indexOf(h); if (i >= 0) { hits++; pool.splice(i, 1); } }
+  const ok = hits === want.length && have.length === want.length;
+  return { ok, score: want.length ? hits / want.length : 0, hits, total: want.length, expected: exp };
+}
 
 const ERRORS = [
   [/no such column: ([\w.]+)/i, (m) => `Die Spalte „${m[1]}“ gibt es nicht. Tippfehler? Fehlen Anführungszeichen um einen Text? Stammt die Spalte aus einer Tabelle, die nicht im FROM/JOIN steht?`],

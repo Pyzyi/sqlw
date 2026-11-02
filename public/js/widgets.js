@@ -10,7 +10,7 @@ export function renderBlocks(blocks) {
     if (b.note) return mdEl('div', b.note, { class: 'note' });
     if (b.list) return h('ul', null, b.list.map((li) => mdEl('li', li)));
     if (b.table) return refTable(b.table);
-    if (b.code) return runner(b.code);
+    if (b.code) return runner(b.code, { db: b.db });
     if (b.kanban) return kanbanSim();
     if (b.erd) return erDiagram();
     return null;
@@ -24,11 +24,11 @@ export function refTable({ head, rows }) {
 }
 
 /** Ausführbares Beispiel – editierbar, läuft auf einer frischen Kopie. */
-export function runner(code, { minLines } = {}) {
+export function runner(code, { minLines, db: dbName } = {}) {
   const out = h('div');
   const ed = createEditor({ value: code, minLines: minLines || Math.min(code.split('\n').length, 4), onRun: () => exec(), hint: false });
   const exec = () => {
-    const db = engine.freshDb();
+    const db = engine.freshDb(dbName);
     const r = engine.run(db, ed.value);
     db.close();
     out.replaceChildren(resultPanel(r, engine.translateError));

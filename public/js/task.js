@@ -4,8 +4,9 @@ import { createEditor, codeBlock } from './editor.js';
 import * as engine from './engine.js';
 import * as store from './store.js';
 import { XP_BY_LEVEL } from './content/index.js';
+import { formelsammlungButton } from './formelsammlung.js';
 
-export const TYPE_LABEL = { mc: 'Auswahl', sql: 'SQL schreiben', fix: 'Fehler finden', dml: 'Daten ändern', predict: 'Ergebnis bestimmen', order: 'Reihenfolge', classify: 'Zuordnen' };
+export const TYPE_LABEL = { mc: 'Auswahl', sql: 'SQL schreiben', fix: 'Fehler finden', dml: 'Daten ändern', predict: 'Ergebnis bestimmen', grid: 'Ergebnistabelle', order: 'Reihenfolge', classify: 'Zuordnen', text: 'Freitext' };
 const isSqlType = (t) => ['sql', 'fix', 'dml'].includes(t.type);
 
 // ---------------- Typ-Renderer ----------------
@@ -133,7 +134,7 @@ function sqlRenderer(task, { allowRun = true, onRunHook } = {}) {
     onSubmit: () => onRunHook && onRunHook('submit'),
   });
   const runIt = () => {
-    const db = engine.freshDb();
+    const db = engine.freshDb(task.db);
     const r = engine.run(db, ed.value);
     let after = null;
     if (r.ok && task.type === 'dml' && !r.last) after = engine.run(db, task.check);
@@ -157,6 +158,74 @@ function sqlRenderer(task, { allowRun = true, onRunHook } = {}) {
   };
 }
 
+
+// Freitext mit Erwartungshorizont und Selbstkontrolle
+function textRenderer(task) {
+  const ta = h('textarea', { class: 'input textanswer', rows: 8, placeholder: 'Deine Antwort – in ganzen Sätzen oder Stichpunkten, wie in der Klausur.', 'aria-label': 'Antwort' });
+  const tableEl = task.table ? h('div', { class: 'runner' }, dataTable({ columns: task.table.head, values: task.table.rows })) : null;
+  const selfBox = h('div');
+  let ticks = null;
+  const api = {
+    el: h('div', null, tableEl, ta, selfBox),
+    textarea: ta,
+    answer: () => ta.value,
+    answered: () => ta.value.trim().length > 0,
+    restore: (a) => { ta.value = typeof a === 'object' && a ? a.text || '' : a || ''; },
+    check: () => {
+      if (!ticks) return { pending: true, ok: false, score: 0 };
+      const score = ticks.filter(Boolean).length / task.points.length;
+      return { ok: score >= (task.pass || 0.6), score, reason: `${ticks.filter(Boolean).length} von ${task.points.length} Punkten des Erwartungshorizonts genannt.` };
+    },
+    /** Zeigt den Erwartungshorizont; onDone(result) nach dem Abhaken. */
+    selfCheck: (onDone, { label = 'Bewerten' } = {}) => {
+      ta.readOnly = true;
+      const boxes = task.points.map((pt) => h('input', { type: 'checkbox' }));
+      selfBox.replaceChildren(h('div', { class: 'selfcheck' },
+        h('p', { class: 'eyebrow accent' }, 'Erwartungshorizont – hake ehrlich ab, was du genannt hast'),
+        h('div', { class: 'stack' }, task.points.map((pt, i) => h('label', { class: 'switch' }, boxes[i], h('span', { html: md(pt) })))),
+        h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', onclick: () => {
+          ticks = boxes.map((b) => b.checked);
+          boxes.forEach((b) => { b.disabled = true; });
+          onDone(api.check());
+        } }, icon('check'), label))));
+      selfBox.querySelector('input')?.focus();
+    },
+    setTicks: (t) => { ticks = t; },
+    getTicks: () => ticks,
+    reveal: () => { ta.readOnly = true; },
+  };
+  return api;
+}
+
+// Ergebnistabelle selbst ausfüllen
+function gridRenderer(task) {
+  const exp = engine.predictActual(task);
+  const db = engine.freshDb(task.db);
+  const tables = (task.showTables || []).map((t) => ({ t, r: engine.run(db, `SELECT * FROM "${t}"`).last }));
+  db.close();
+  const inputs = exp.values.map(() => exp.columns.map((c) => h('input', { class: 'input mono', type: 'text', 'aria-label': c, autocomplete: 'off' })));
+  const grid = h('table', { class: 'data gridinput' },
+    h('thead', null, h('tr', null, exp.columns.map((c) => h('th', null, c)))),
+    h('tbody', null, inputs.map((row) => h('tr', null, row.map((inp) => h('td', null, inp))))));
+  const rows = () => inputs.map((r) => r.map((i) => i.value)).filter((r) => r.some((v) => v.trim() !== ''));
+  let last = null;
+  return {
+    el: h('div', null,
+      tables.map(({ t, r }) => h('details', { class: 'drawer', style: { marginBottom: '8px' } }, h('summary', null, icon('db'), `Tabelle ${t}`), h('div', { class: 'drawer-body flush' }, dataTable(r)))),
+      h('div', { class: 'predict-src' }, h('p', { class: 'eyebrow', style: { marginBottom: '6px' } }, 'Abfrage'), h('div', { class: 'runner' }, codeBlock(task.sql))),
+      h('p', { class: 'eyebrow', style: { margin: '14px 0 6px' } }, 'Dein Ergebnis'),
+      h('div', { class: 'runner', style: { margin: 0 } }, h('div', { class: 'result-scroll' }, grid))),
+    answer: () => inputs.map((r) => r.map((i) => i.value)),
+    answered: () => rows().length > 0,
+    restore: (a) => { (a || []).forEach((r, i) => r.forEach((v, j) => { if (inputs[i] && inputs[i][j]) inputs[i][j].value = v; })); },
+    check: () => {
+      last = engine.gradeGrid(task, rows());
+      return { ok: last.ok, score: last.score, reason: `${last.hits} von ${last.total} Zeilen richtig. Reihenfolge egal, Zahlen ohne Tausenderpunkt.` };
+    },
+    reveal: () => { inputs.flat().forEach((i) => { i.readOnly = true; }); },
+  };
+}
+
 export function makeRenderer(task, opts = {}) {
   const seed = opts.seed || [...task.key].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) >>> 0;
   switch (task.type) {
@@ -164,13 +233,15 @@ export function makeRenderer(task, opts = {}) {
     case 'classify': return classifyRenderer(task, seed);
     case 'order': return orderRenderer(task, seed);
     case 'predict': return predictRenderer(task);
+    case 'text': return textRenderer(task);
+    case 'grid': return gridRenderer(task);
     default: return sqlRenderer(task, opts);
   }
 }
 
 // ---------------- Schema-Anzeige ----------------
-export function schemaPanel(tables, onPick) {
-  const db = engine.freshDb();
+export function schemaPanel(tables, onPick, dbName) {
+  const db = engine.freshDb(dbName);
   const list = tables.map((t) => ({ t, cols: engine.tableInfo(db, t) }));
   db.close();
   return h('div', { class: 'schema' }, list.map(({ t, cols }) => h('div', { class: 'tbl' },
@@ -197,10 +268,10 @@ export function renderTaskWorkspace(task, { mode = 'learn', onNext, position, on
   let revealedWrong = false;
   let done = false;
 
-  const btnCheck = h('button', { class: 'btn primary', type: 'button', onclick: () => submit() }, icon('check'), 'Prüfen');
+  const btnCheck = h('button', { class: 'btn primary', type: 'button', onclick: () => submit() }, icon('check'), task.type === 'text' ? 'Abgeben & vergleichen' : 'Prüfen');
   const btnRun = isSqlType(task) ? h('button', { class: 'btn', type: 'button', onclick: () => R.runIt() }, icon('play'), 'Ausführen', h('kbd', null, 'Strg ↵')) : null;
   const btnRetry = h('button', { class: 'btn', type: 'button', hidden: true, onclick: () => rerender() }, icon('reset'), 'Nochmal versuchen');
-  const btnShow = h('button', { class: 'btn ghost', type: 'button', hidden: !isSqlType(task) && task.type !== 'predict', onclick: () => showSolution() }, icon('eye'), 'Lösung zeigen');
+  const btnShow = h('button', { class: 'btn ghost', type: 'button', hidden: !isSqlType(task) && !['predict', 'grid'].includes(task.type), onclick: () => showSolution() }, icon('eye'), 'Lösung zeigen');
   const btnNext = onNext ? h('button', { class: 'btn accent', type: 'button', hidden: true, onclick: onNext }, 'Weiter', icon('chev')) : null;
 
   const hintBox = h('div');
@@ -210,9 +281,22 @@ export function renderTaskWorkspace(task, { mode = 'learn', onNext, position, on
 
   function submit() {
     if (done && mode !== 'review') return;
-    if (!R.answered()) { feedback.replaceChildren(fb('info', 'Noch keine Antwort', task.type === 'order' ? 'Lege alle Bausteine in eine Reihenfolge.' : task.type === 'classify' ? 'Ordne jeden Befund einer Kategorie zu.' : 'Gib zuerst eine Antwort ein.')); return; }
+    if (!R.answered()) { feedback.replaceChildren(fb('info', 'Noch keine Antwort', task.type === 'order' ? 'Lege alle Bausteine in eine Reihenfolge.' : task.type === 'classify' ? 'Ordne jeden Befund einer Kategorie zu.' : task.start ? 'Du hast die fehlerhafte Anweisung noch nicht verändert. Finde den Fehler und korrigiere ihn im Editor.' : 'Gib zuerst eine Antwort ein.')); return; }
+    if (task.type === 'text') {
+      btnCheck.hidden = true;
+      feedback.replaceChildren(h('div', { class: 'feedback info' }, h('div', { class: 'fb-title' }, icon('bulb'), 'Musterantwort'), h('div', { class: 'fb-body', html: String(task.model).split('\n').filter(Boolean).map((p) => `<p>${md(p)}</p>`).join('') })));
+      R.selfCheck((res) => {
+        const r = store.recordAttempt(task, { correct: res.ok, hintUsed });
+        done = true;
+        feedback.appendChild(fb(res.ok ? 'ok' : 'bad', res.ok ? 'Gut beantwortet' : 'Noch Lücken', `${res.reason}\n\n${task.explain}`, res.ok ? r.xp : 0));
+        if (btnNext) { btnNext.hidden = false; }
+        btnRetry.hidden = res.ok;
+        if (res.ok) { celebrate(r); onSolved && onSolved(); }
+      });
+      return;
+    }
     const res = R.check();
-    const autoReveal = ['mc', 'classify', 'order'].includes(task.type);
+    const autoReveal = ['mc', 'classify', 'order', 'grid'].includes(task.type);
     if (res.ok) {
       const r = store.recordAttempt(task, { correct: true, hintUsed: hintUsed || revealedWrong, fromReview: mode === 'review' });
       done = true;
@@ -239,7 +323,9 @@ export function renderTaskWorkspace(task, { mode = 'learn', onNext, position, on
   function showSolution() {
     if (store.taskState(task.key)?.status !== 'solved') store.markShown(task);
     done = true;
-    const sol = task.type === 'predict' ? h('p', null, 'Ergebnis: ', h('code', null, task.answer)) : h('div', { class: 'solution-code' }, codeBlock(task.solution));
+    const sol = task.type === 'predict' ? h('p', null, 'Ergebnis: ', h('code', null, task.answer))
+      : task.type === 'grid' ? h('div', { class: 'runner' }, dataTable(engine.predictActual(task)))
+      : h('div', { class: 'solution-code' }, codeBlock(task.solution));
     const take = isSqlType(task) ? h('button', { class: 'btn sm', type: 'button', onclick: () => { R.editor.value = task.solution; R.runIt(); } }, 'In den Editor übernehmen') : null;
     feedback.replaceChildren(h('div', { class: 'feedback info' },
       h('div', { class: 'fb-title' }, icon('eye'), 'Musterlösung', h('span', { class: 'small muted', style: { fontWeight: 400, marginLeft: 'auto' } }, 'ohne XP · kommt in die Wiederholung')),
@@ -261,14 +347,17 @@ export function renderTaskWorkspace(task, { mode = 'learn', onNext, position, on
     levelDots(task.level),
     h('span', { class: 'pill' }, `${XP_BY_LEVEL[task.level]} XP`),
     ts?.status === 'solved' ? h('span', { class: 'pill ok' }, icon('check'), 'gelöst') : null,
-    mode === 'review' ? h('span', { class: 'pill accent' }, `Wiederholung · Fach ${ts?.box || 1}`) : null);
+    mode === 'review' ? h('span', { class: 'pill accent' }, `Wiederholung · Fach ${ts?.box || 1}`) : null,
+    task.zusatz ? h('span', { class: 'pill warn', title: 'Geht über die Formelsammlung hinaus – nicht Teil der Probeklausur' }, 'Vertiefung') : null,
+    h('span', { class: 'spacer' }),
+    isSqlType(task) || ['grid', 'predict'].includes(task.type) ? formelsammlungButton() : null);
 
   const question = h('div', { class: 'task-q', html: task.q.split('\n\n').map((p) => `<p>${md(p)}</p>`).join('') });
   const actions = h('div', { class: 'actions' }, btnRun, btnCheck, btnRetry, h('span', { class: 'spacer' }), btnShow, btnNext);
 
   if (isSqlType(task)) {
     const side = h('div', { class: 'task-side' },
-      h('details', { class: 'drawer', open: true }, h('summary', null, icon('db'), 'Tabellen'), h('div', { class: 'drawer-body flush' }, schemaPanel(task.tables || [], (name, isTable) => R.editor.insert(name + (isTable ? ' ' : ''))))),
+      h('details', { class: 'drawer', open: true }, h('summary', null, icon('db'), 'Tabellen'), h('div', { class: 'drawer-body flush' }, schemaPanel(task.tables || [], (name, isTable) => R.editor.insert(name + (isTable ? ' ' : '')), task.db))),
       targetDrawer(task),
       hintDrawer);
     root = h('div', { class: 'task-layout' },

@@ -76,10 +76,10 @@ export function toast(content, ms = 2600) {
   setTimeout(() => t.remove(), ms);
 }
 
-export function modal(build, { onClose, dismissable = true } = {}) {
+export function modal(build, { onClose, dismissable = true, wide = false } = {}) {
   const prev = document.activeElement;
   const close = () => { back.remove(); document.removeEventListener('keydown', onKey); onClose && onClose(); prev && prev.focus && prev.focus(); };
-  const box = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' });
+  const box = h('div', { class: `modal${wide ? ' wide' : ''}`, role: 'dialog', 'aria-modal': 'true' });
   const back = h('div', { class: 'modal-back', onclick: (e) => { if (dismissable && e.target === back) close(); } }, box);
   const onKey = (e) => { if (e.key === 'Escape' && dismissable) close(); };
   document.addEventListener('keydown', onKey);

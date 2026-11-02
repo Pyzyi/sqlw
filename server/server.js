@@ -11,7 +11,7 @@ const DATA_DIR = path.resolve(process.env.DATA_DIR || '/data');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const MAX_BODY = 1024 * 1024; // 1 MB pro Lernstand
-const VERSION = process.env.APP_VERSION || '1.0.0';
+const VERSION = process.env.APP_VERSION || '2.0.0';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',

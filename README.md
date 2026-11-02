@@ -3,10 +3,11 @@
 Interaktive Lernwerkstatt zur Klausurvorbereitung **Datenaufbereitung & SQL**.
 Erst verstehen, dann üben, dann unter Zeitdruck bestehen – komplett offline, im Browser, auf deinem eigenen Server.
 
-- **7 Module** genau entlang der Prüfungsthemen – mit Lerneinheiten und ausführbaren Beispielen
-- **151 Aufgaben** in 7 Typen: SQL schreiben, Fehler finden, Daten ändern (INSERT/UPDATE/DELETE), Ergebnis bestimmen, Auswahl, Zuordnen, Reihenfolge
+- **8 Module** genau entlang der Prüfungsthemen – mit Lerneinheiten und ausführbaren Beispielen, inklusive des kompletten **Übungsblatts** aus dem Unterricht
+- **199 Aufgaben** in 9 Typen: SQL schreiben, Fehler finden, Daten ändern (INSERT/UPDATE/DELETE), Ergebnis bestimmen, Ergebnistabelle ausfüllen, **Freitext mit Erwartungshorizont**, Auswahl, Zuordnen, Reihenfolge
 - **Echte SQL-Engine** (SQLite als WebAssembly) – jede Abgabe wird gegen eine Musterlösung ausgeführt und verglichen, mit deutschen Fehlermeldungen und konkreten Tipps
-- **Probeklausuren** (20 / 45 / 90 min) mit Timer, Papiermodus und IHK-Notenschlüssel
+- **Formelsammlung** – dieselbe, die in der Klausur erlaubt ist – jederzeit aufrufbar; Aufgaben mit Syntax darüber hinaus sind als *Vertiefung* markiert
+- **Probeklausuren** (Übungsblatt-Klausur, 20 / 45 / 90 min) mit Timer, Papiermodus, Formelsammlung und IHK-Notenschlüssel
 - **Wiederholung** nach Karteikasten-Prinzip (1 → 3 → 7 Tage) für alles, was noch nicht sitzt
 - **Gamification**: XP, sechs Stufen vom *Lehrling* zum *Baumeister*, Lernserie, 16 Abzeichen, Klausurreife-Anzeige und Tagesplan bis zum Klausurtermin
 - **Spielwiese** mit Schema-Browser, **Spickzettel** mit ER-Diagramm (druckbar)
@@ -20,9 +21,10 @@ Erst verstehen, dann üben, dann unter Zeitdruck bestehen – komplett offline, 
 | SQL | 04 Abfragen schreiben | SELECT, WHERE, ORDER BY, LIMIT, DISTINCT, Rechnen mit Alias |
 | | 05 Auswerten | Aggregatfunktionen, GROUP BY, HAVING |
 | | 06 Mehrere Tabellen | PK/FK, JOINs über 2–4 Tabellen, LEFT JOIN, Unterabfragen, Ergebnisse vorhersagen |
-| | 07 Daten ändern & Fehler finden | INSERT, UPDATE, DELETE, referentielle Integrität, 12 Fehlerklassiker |
+| | 07 Daten ändern & Fehler finden | INSERT, UPDATE, DELETE, referentielle Integrität, Fehlerklassiker |
+| Klausurvorbereitung | 08 Übungsblatt | Wiederholungsblatt aus dem Unterricht: Teil A (Freitext, Fitnessstudio), Teil B (SQL, Stadtbücherei), Zusatz IHK |
 
-Die Übungsdatenbank ist ein fiktiver Baustoffhandel (Kunden, Artikel, Bestellungen, Buchungen mit eingebauten Auffälligkeiten und eine absichtlich „schmutzige“ Importtabelle).
+Es gibt zwei Übungsdatenbanken: einen fiktiven Baustoffhandel (Kunden, Artikel, Bestellungen, Buchungen mit eingebauten Auffälligkeiten und eine absichtlich „schmutzige“ Importtabelle) und die Stadtbücherei aus dem Übungsblatt (Buch, Verlag, Mitglied, Entleihe).
 
 ---
 
@@ -67,7 +69,7 @@ Voraussetzung: Node.js ≥ 20. Es gibt **keine** npm-Abhängigkeiten.
 
 ```sh
 npm run dev        # http://localhost:8080, Daten in ./.data
-npm test           # automatische Tests (Inhalte + Server)
+npm test           # 219 automatische Tests (Inhalte + Server)
 npm run seed       # Übungsdatenbank neu erzeugen (public/data/seed.sql)
 ```
 
@@ -83,7 +85,9 @@ public/
   js/engine.js         SQL-Engine-Wrapper, Bewertung, deutsche Fehlermeldungen
   js/store.js          Lernstand, XP, Stufen, Abzeichen, Wiederholung, Sync
   js/content/*.js      Lerninhalte und Aufgaben (ein Modul je Datei)
-  data/seed.sql        Übungsdatenbank
+  js/formelsammlung.js Formelsammlung (Klausur-Hilfsmittel)
+  data/seed.sql        Übungsdatenbank Baustoffhandel
+  data/buecherei.sql   Übungsdatenbank Stadtbücherei (Übungsblatt)
   vendor/              sql.js (SQLite/WASM, MIT-Lizenz)
   fonts/               IBM Plex Sans/Mono, Fraunces (OFL) – lokal, kein CDN
 server/server.js       HTTP-Server ohne Abhängigkeiten + Lernstand-API
